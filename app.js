@@ -1,24 +1,46 @@
+const path = require("path");
+
 const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
-const path = require("path");
-
-const adminRoutes = require("./routes/admin");
-const shopRoutes = require("./routes/shop");
+const session = require("express-session");
+const MongoDBStore = require("connect-mongodb-session")(session);
 
 const errorsController = require("./controllers/errors.controller");
 const User = require("./models/user");
 
+const MONGODB_URI =
+  "mongodb+srv://vadimcs4:18092002@cluster0.xhhylnm.mongodb.net/shop?retryWrites=true&w=majority&appName=Cluster0";
+
 const app = express();
+const sessionStore = new MongoDBStore({
+  uri: MONGODB_URI,
+  collection: "sessions",
+});
 
 app.set("view engine", "ejs");
 app.set("views", "views");
 
+const adminRoutes = require("./routes/admin");
+const shopRoutes = require("./routes/shop");
+const authRoutes = require("./routes/auth");
+
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, "public")));
+app.use(
+  session({
+    secret: "my secret",
+    resave: false,
+    saveUninitialized: false,
+    store: sessionStore,
+  })
+);
 
 app.use((req, res, next) => {
-  User.findById("66fed22e78cad6b50a8de376")
+  if (!req.session.user) {
+    return next();
+  }
+  User.findById(req.session.user._id)
     .then((user) => {
       req.user = user;
       next();
@@ -30,13 +52,12 @@ app.use((req, res, next) => {
 
 app.use("/admin", adminRoutes);
 app.use(shopRoutes);
+app.use(authRoutes);
 
 app.use(errorsController.get404Error);
 
 mongoose
-  .connect(
-    "mongodb+srv://vadimcs4:18092002@cluster0.xhhylnm.mongodb.net/shop?retryWrites=true&w=majority&appName=Cluster0"
-  )
+  .connect(MONGODB_URI)
   .then((result) => {
     User.findOne().then((user) => {
       if (!user) {
