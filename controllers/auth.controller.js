@@ -6,6 +6,7 @@ const sendgridTransport = require("nodemailer-sendgrid-transport");
 const { validationResult } = require("express-validator");
 
 const User = require("../models/user");
+const throwError = require("../util/throwError");
 
 exports.getLogin = (req, res, next) => {
   let errorMessage = req.flash("error");
@@ -102,7 +103,7 @@ exports.postLogin = (req, res, next) => {
         });
     })
     .catch((err) => {
-      console.log(err);
+      throwError(err, next);
     });
 };
 
@@ -142,7 +143,7 @@ exports.postSignup = (req, res, next) => {
       //   html: "<h1>You successfully signed up!</h1>",
       // });
     })
-    .catch((err) => console.log(err));
+    .catch((err) => throwError(err, next));
 };
 
 exports.postLogout = (req, res, next) => {
@@ -196,7 +197,7 @@ exports.postReset = (req, res, next) => {
         //   `,
         // });
       })
-      .catch((err) => console.log(err));
+      .catch((err) => throwError(err, next));
   });
 };
 
@@ -221,7 +222,7 @@ exports.getNewPassword = (req, res, next) => {
         passwordToken: token,
       });
     })
-    .catch((err) => console.log(err));
+    .catch((err) => throwError(err, next));
 };
 
 exports.postNewPassword = (req, res, next) => {
@@ -248,5 +249,5 @@ exports.postNewPassword = (req, res, next) => {
     .then((result) => {
       res.redirect("/login");
     })
-    .catch((err) => console.log(err));
+    .catch((err) => throwError(err, next));
 };

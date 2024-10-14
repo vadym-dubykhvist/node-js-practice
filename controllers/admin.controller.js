@@ -1,6 +1,7 @@
 const { validationResult } = require("express-validator");
 
 const Product = require("../models/product");
+const throwError = require("../util/throwError");
 
 exports.getAddProduct = (req, res, next) => {
   res.render("admin/edit-product", {
@@ -51,7 +52,7 @@ exports.postAddProduct = (req, res, next) => {
       res.redirect("/admin/products");
     })
     .catch((err) => {
-      console.log(err);
+      throwError(err, next);
     });
 };
 
@@ -77,7 +78,7 @@ exports.getEditProduct = (req, res, next) => {
       });
     })
     .catch((err) => {
-      console.log(err);
+      throwError(err, next);
     });
 };
 
@@ -123,7 +124,7 @@ exports.postEditProduct = (req, res, next) => {
       });
     })
     .catch((err) => {
-      console.log(err);
+      throwError(err, next);
     });
 };
 
@@ -137,7 +138,7 @@ exports.getProducts = (req, res, next) => {
       });
     })
     .catch((err) => {
-      console.log(err);
+      throwError(err, next);
     });
 };
 
@@ -149,6 +150,6 @@ exports.postDeleteProduct = (req, res, next) => {
       res.redirect("/admin/products");
     })
     .catch((err) => {
-      console.log(err);
+      throwError(err, next);
     });
 };
