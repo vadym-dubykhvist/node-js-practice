@@ -1,3 +1,8 @@
+const fs = require("fs");
+const path = require("path");
+
+const PDFDocument = require("pdfkit");
+
 const Product = require("../models/product");
 const Order = require("../models/order");
 const throwError = require("../util/throwError");
@@ -117,6 +122,62 @@ exports.getOrders = (req, res, next) => {
         pageTitle: "Your Orders",
         orders: orders,
       });
+    })
+    .catch((err) => throwError(err, next));
+};
+
+exports.getInvoice = (req, res, next) => {
+  const orderId = req.params.orderId;
+  Order.findById(orderId)
+    .then((order) => {
+      if (!order) {
+        return throwError("No order found", next);
+      }
+      if (order.user.userId.toString() !== req.user._id.toString()) {
+        return throwError("Unautorized", next);
+      }
+      const invoiceName = "invoice-" + orderId + ".pdf";
+      const invoicePath = path.join("data", "invoices", invoiceName);
+
+      const pdfDoc = new PDFDocument();
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", 'filename="' + invoiceName + '"');
+      pdfDoc.pipe(fs.createWriteStream(invoicePath));
+      pdfDoc.pipe(res);
+
+      pdfDoc.fontSize(26).text("Invoice", {
+        underline: true,
+      });
+
+      pdfDoc.text("------------------------------------------------------");
+
+      let totalPrice = 0;
+      order.products.forEach((prod) => {
+        totalPrice += totalPrice + prod.quantity * prod.product.price;
+        pdfDoc
+          .fontSize(16)
+          .text(
+            prod.product.title +
+              " - " +
+              prod.quantity +
+              " - " +
+              "$" +
+              prod.product.price
+          );
+      });
+
+      pdfDoc
+        .fontSize(26)
+        .text("------------------------------------------------------");
+
+      pdfDoc.fontSize(20).text("Total price: $" + totalPrice);
+
+      pdfDoc.end();
+
+      // const file = fs.createReadStream(invoicePath);
+      // res.setHeader("Content-Type", "application/pdf");
+      // res.setHeader("Content-Disposition", 'filename="' + invoiceName + '"');
+      // file.pipe(res);
     })
     .catch((err) => throwError(err, next));
 };
