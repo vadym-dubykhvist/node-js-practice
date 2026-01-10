@@ -1,77 +1,118 @@
-const express = require("express");
-const bodyParser = require("body-parser");
 const path = require("path");
 
-const adminRoutes = require("./routes/admin");
-const shopRoutes = require("./routes/shop");
+const express = require("express");
+const bodyParser = require("body-parser");
+const mongoose = require("mongoose");
+const session = require("express-session");
+const MongoDBStore = require("connect-mongodb-session")(session);
+const csrf = require("csurf");
+const flash = require("connect-flash");
+const multer = require("multer");
+
+const fileStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "images");
+  },
+  filename: (req, file, cb) => {
+    cb(null, Math.random() + "-" + file.originalname);
+  },
+});
+
+const fileFilter = (req, file, cb) => {
+  if (
+    file.mimetype === "image/png" ||
+    file.mimetype === "image/jpg" ||
+    file.mimetype === "image/jpeg"
+  ) {
+    cb(null, true);
+  } else {
+    cb(null, false);
+  }
+};
 
 const errorsController = require("./controllers/errors.controller");
-
-const sequelize = require("./util/database");
-const Product = require("./models/product");
 const User = require("./models/user");
-const Cart = require("./models/cart");
-const CartItem = require("./models/cart-item");
-const Order = require("./models/order");
-const OrderItem = require("./models/order-item");
+
+const MONGODB_URI =
+  "mongodb+srv://vadimcs4:18092002@cluster0.xhhylnm.mongodb.net/shop?retryWrites=true&w=majority&appName=Cluster0";
 
 const app = express();
+const sessionStore = new MongoDBStore({
+  uri: MONGODB_URI,
+  collection: "sessions",
+});
+//!DEPRECATED: Change to the actual csrf lib
+const csrfProtection = csrf();
 
 app.set("view engine", "ejs");
 app.set("views", "views");
 
+const adminRoutes = require("./routes/admin");
+const shopRoutes = require("./routes/shop");
+const authRoutes = require("./routes/auth");
+
 app.use(bodyParser.urlencoded({ extended: false }));
+app.use(
+  multer({
+    storage: fileStorage,
+    fileFilter: fileFilter,
+  }).single("image")
+);
 app.use(express.static(path.join(__dirname, "public")));
+app.use("/images", express.static(path.join(__dirname, "images")));
+app.use(
+  session({
+    secret: "my secret",
+    resave: false,
+    saveUninitialized: false,
+    store: sessionStore,
+  })
+);
+app.use(csrfProtection);
+app.use(flash());
 
 app.use((req, res, next) => {
-  User.findByPk(1)
+  res.locals.isAuthenticated = req.session.isLoggedIn;
+  res.locals.csrfToken = req.csrfToken();
+  next();
+});
+
+app.use((req, res, next) => {
+  if (!req.session.user) {
+    return next();
+  }
+  User.findById(req.session.user._id)
     .then((user) => {
+      if (!user) {
+        return next();
+      }
       req.user = user;
       next();
     })
     .catch((err) => {
-      console.log(err);
+      next(new Error(err));
     });
 });
 
 app.use("/admin", adminRoutes);
 app.use(shopRoutes);
+app.use(authRoutes);
+
+app.use("/500", errorsController.get500Error);
 
 app.use(errorsController.get404Error);
 
-Product.belongsTo(User, {
-  constraints: true,
-  onDelete: "CASCADE",
+app.use((error, req, res, next) => {
+  res.render("500", {
+    pageTitle: "Error!",
+    path: "/500",
+    isAuthenticated: req.session.isLoggedIn,
+  });
 });
-User.hasMany(Product);
-User.hasOne(Cart);
-Cart.belongsTo(User);
-Cart.belongsToMany(Product, { through: CartItem });
-Product.belongsToMany(Cart, { through: CartItem });
-Order.belongsTo(User);
-User.hasMany(Order);
-Order.belongsToMany(Product, { through: OrderItem });
 
-sequelize
-  // .sync({
-  //   force: true,
-  // })
-  .sync()
+mongoose
+  .connect(MONGODB_URI)
   .then((result) => {
-    return User.findByPk(1);
-  })
-  .then((user) => {
-    if (!user) {
-      return User.create({ name: "Vadym", email: "test@test.com" });
-    }
-    return user;
-  })
-  .then((user) => {
-    return user.createCart();
-  })
-  .then((cart) => {
     app.listen(3000);
   })
-  .catch((err) => {
-    console.log(err);
-  });
+  .catch((err) => console.log(err));
